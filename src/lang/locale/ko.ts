@@ -26,6 +26,7 @@ const lang: Partial<Lang> = {
 
   // parser.ts
   Complete: '완료됨',
+  'In Progress': '진행 중',
   Archive: '보관됨',
   'Invalid Kanban file: problems parsing frontmatter':
     '잘못된 칸반 파일: 프론트매터 파싱 문제가 발생했습니다.',
@@ -186,6 +187,7 @@ const lang: Partial<Lang> = {
   // components/Lane/LaneForm.tsx
   'Enter list title...': '목록 제목 입력...',
   'Mark cards in this list as complete': '이 목록의 카드를 완료됨으로 표시',
+  'Mark cards in this list as in progress': '이 목록의 카드를 진행 중으로 표시',
   'Add list': '목록 추가',
   'Add a list': '목록 추가',
 

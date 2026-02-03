@@ -21,13 +21,35 @@ export function LaneSettings({ lane, lanePath, editState }: LaneSettingsProps) {
   return (
     <div className={c('lane-setting-wrapper')}>
       <div className={c('checkbox-wrapper')}>
+        <div className={c('checkbox-label')}>{t('Mark cards in this list as in progress')}</div>
+        <div
+          onClick={() =>
+            boardModifiers.updateLane(
+              lanePath,
+              update(lane, {
+                data: {
+                  $toggle: ['shouldMarkItemsInProgress'],
+                  // If enabling in-progress, disable complete (mutually exclusive)
+                  ...(lane.data.shouldMarkItemsInProgress ? {} : { shouldMarkItemsComplete: { $set: false } }),
+                },
+              })
+            )
+          }
+          className={`checkbox-container ${lane.data.shouldMarkItemsInProgress ? 'is-enabled' : ''}`}
+        />
+      </div>
+      <div className={c('checkbox-wrapper')}>
         <div className={c('checkbox-label')}>{t('Mark cards in this list as complete')}</div>
         <div
           onClick={() =>
             boardModifiers.updateLane(
               lanePath,
               update(lane, {
-                data: { $toggle: ['shouldMarkItemsComplete'] },
+                data: {
+                  $toggle: ['shouldMarkItemsComplete'],
+                  // If enabling complete, disable in-progress (mutually exclusive)
+                  ...(lane.data.shouldMarkItemsComplete ? {} : { shouldMarkItemsInProgress: { $set: false } }),
+                },
               })
             )
           }

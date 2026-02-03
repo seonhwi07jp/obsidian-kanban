@@ -20,7 +20,7 @@ import { defaultSort } from 'src/helpers/util';
 import { t } from 'src/lang/helpers';
 import { visit } from 'unist-util-visit';
 
-import { archiveString, completeString, settingsToCodeblock } from '../common';
+import { archiveString, completeString, inProgressString, settingsToCodeblock } from '../common';
 import { DateNode, FileNode, TimeNode, ValueNode } from '../extensions/types';
 import {
   ContentBoundary,
@@ -253,6 +253,7 @@ export function astToUnhydratedBoard(
       const title = getStringFromBoundary(md, headingBoundary);
 
       let shouldMarkItemsComplete = false;
+      let shouldMarkItemsInProgress = false;
 
       const list = getNextOfType(root.children, index, 'list', (child) => {
         if (child.type === 'heading') return false;
@@ -266,6 +267,11 @@ export function astToUnhydratedBoard(
 
           if (childStr === t('Complete')) {
             shouldMarkItemsComplete = true;
+            return true;
+          }
+
+          if (childStr === t('In Progress')) {
+            shouldMarkItemsInProgress = true;
             return true;
           }
         }
@@ -295,6 +301,7 @@ export function astToUnhydratedBoard(
           data: {
             ...parseLaneTitle(title),
             shouldMarkItemsComplete,
+            shouldMarkItemsInProgress,
           },
         });
       } else {
@@ -312,6 +319,7 @@ export function astToUnhydratedBoard(
           data: {
             ...parseLaneTitle(title),
             shouldMarkItemsComplete,
+            shouldMarkItemsInProgress,
           },
         });
       }
@@ -410,6 +418,10 @@ function laneToMd(lane: Lane) {
   lines.push(`## ${replaceNewLines(laneTitleWithMaxItems(lane.data.title, lane.data.maxItems))}`);
 
   lines.push('');
+
+  if (lane.data.shouldMarkItemsInProgress) {
+    lines.push(inProgressString);
+  }
 
   if (lane.data.shouldMarkItemsComplete) {
     lines.push(completeString);

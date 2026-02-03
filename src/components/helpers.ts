@@ -6,6 +6,13 @@ import { StateManager } from 'src/StateManager';
 import { Path } from 'src/dnd/types';
 import { getEntityFromPath } from 'src/dnd/util/data';
 import {
+  applyStateTransitionTimestamps,
+  getInProgressCheckChar,
+  isInProgressCheckChar,
+  TimestampType,
+  upsertTimestamp,
+} from 'src/helpers/timestampUtils';
+import {
   InlineField,
   getTaskStatusDone,
   getTaskStatusPreDone,
@@ -47,46 +54,116 @@ export function maybeCompleteForMove(
 
   const oldShouldComplete = sourceParent?.data?.shouldMarkItemsComplete;
   const newShouldComplete = destinationParent?.data?.shouldMarkItemsComplete;
-
-  // If neither the old or new lane set it complete, leave it alone
-  if (!oldShouldComplete && !newShouldComplete) return { next: item };
+  const oldShouldInProgress = sourceParent?.data?.shouldMarkItemsInProgress;
+  const newShouldInProgress = destinationParent?.data?.shouldMarkItemsInProgress;
 
   const isComplete = item.data.checked && item.data.checkChar === getTaskStatusDone();
+  const isInProgress = isInProgressCheckChar(item.data.checkChar);
 
-  // If it already matches the new lane, leave it alone
-  if (newShouldComplete === isComplete) return { next: item };
+  // Determine what state transitions are happening
+  const wasInProgressLane = !!oldShouldInProgress;
+  const wasDoneLane = !!oldShouldComplete;
+  const isMovingToInProgressLane = !!newShouldInProgress;
+  const isMovingToDoneLane = !!newShouldComplete;
 
+  // If neither lane has special properties, leave it alone
+  if (!oldShouldComplete && !newShouldComplete && !oldShouldInProgress && !newShouldInProgress) {
+    return { next: item };
+  }
+
+  // Handle timestamp updates based on state transition
+  let updatedTitleRaw = item.data.titleRaw;
+  
+  // Apply timestamp logic for state transitions
+  updatedTitleRaw = applyStateTransitionTimestamps(
+    updatedTitleRaw,
+    isMovingToInProgressLane,
+    isMovingToDoneLane,
+    wasInProgressLane || isInProgress,
+    wasDoneLane || isComplete
+  );
+
+  // Handle In Progress state transition
+  if (isMovingToInProgressLane && !isInProgress) {
+    const newItem = destinationStateManager.getNewItem(updatedTitleRaw, getInProgressCheckChar());
+    return { next: newItem };
+  }
+
+  // Handle moving from In Progress to a normal lane (not Done)
+  if (wasInProgressLane && !isMovingToInProgressLane && !isMovingToDoneLane && isInProgress) {
+    const newItem = destinationStateManager.getNewItem(updatedTitleRaw, ' ');
+    return { next: newItem };
+  }
+
+  // Handle Done state transition (existing logic with timestamp integration)
+  // If it already matches the new lane's completion state, just update title if needed
+  if (newShouldComplete === isComplete && updatedTitleRaw === item.data.titleRaw) {
+    return { next: item };
+  }
+
+  // If only title changed (timestamps), update the item
+  if (updatedTitleRaw !== item.data.titleRaw && !newShouldComplete && !isMovingToInProgressLane) {
+    const newItem = destinationStateManager.getNewItem(updatedTitleRaw, item.data.checkChar);
+    return { next: newItem };
+  }
+
+  // Handle task completion with tasks plugin
   if (newShouldComplete) {
-    item = update(item, { data: { checkChar: { $set: getTaskStatusPreDone() } } });
+    let itemToToggle = item;
+    
+    // Update title with timestamps first
+    if (updatedTitleRaw !== item.data.titleRaw) {
+      itemToToggle = update(item, {
+        data: {
+          titleRaw: { $set: updatedTitleRaw },
+          checkChar: { $set: getTaskStatusPreDone() },
+        },
+      });
+    } else {
+      itemToToggle = update(item, { data: { checkChar: { $set: getTaskStatusPreDone() } } });
+    }
+
+    const updates = toggleTask(itemToToggle, destinationStateManager.file);
+
+    if (updates) {
+      const [itemStrings, checkChars, thisIndex] = updates;
+      let next: Item;
+      let replacement: Item;
+
+      itemStrings.forEach((str, i) => {
+        // Apply timestamps to the toggled task string as well
+        let finalStr = str;
+        if (i === thisIndex && isMovingToDoneLane) {
+          finalStr = applyStateTransitionTimestamps(
+            str,
+            false,
+            true,
+            wasInProgressLane || isInProgress,
+            false
+          );
+        }
+        
+        if (i === thisIndex) {
+          next = destinationStateManager.getNewItem(finalStr, checkChars[i]);
+        } else {
+          replacement = destinationStateManager.getNewItem(str, checkChars[i]);
+        }
+      });
+
+      return { next, replacement };
+    }
   }
 
-  const updates = toggleTask(item, destinationStateManager.file);
-
-  if (updates) {
-    const [itemStrings, checkChars, thisIndex] = updates;
-    let next: Item;
-    let replacement: Item;
-
-    itemStrings.forEach((str, i) => {
-      if (i === thisIndex) {
-        next = destinationStateManager.getNewItem(str, checkChars[i]);
-      } else {
-        replacement = destinationStateManager.getNewItem(str, checkChars[i]);
-      }
-    });
-
-    return { next, replacement };
-  }
-
-  // It's different, update it
+  // It's different, update it (fallback case)
   return {
     next: update(item, {
       data: {
+        titleRaw: { $set: updatedTitleRaw },
         checked: {
-          $set: newShouldComplete,
+          $set: !!newShouldComplete,
         },
         checkChar: {
-          $set: newShouldComplete ? getTaskStatusDone() : ' ',
+          $set: newShouldComplete ? getTaskStatusDone() : newShouldInProgress ? getInProgressCheckChar() : ' ',
         },
       },
     }),

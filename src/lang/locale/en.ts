@@ -30,6 +30,7 @@ const en = {
 
   // parser.ts
   Complete: 'Complete',
+  'In Progress': 'In Progress',
   Archive: 'Archive',
   'Invalid Kanban file: problems parsing frontmatter':
     'Invalid Kanban file: problems parsing frontmatter',
@@ -240,6 +241,7 @@ const en = {
   // components/Lane/LaneForm.tsx
   'Enter list title...': 'Enter list title...',
   'Mark cards in this list as complete': 'Mark cards in this list as complete',
+  'Mark cards in this list as in progress': 'Mark cards in this list as in progress',
   'Add list': 'Add list',
   'Add a list': 'Add a list',
 

@@ -19,6 +19,11 @@ import {
   updateEntity,
 } from './dnd/util/data';
 import { getBoardModifiers } from './helpers/boardModifiers';
+import {
+  getInProgressCheckChar,
+  TimestampType,
+  upsertTimestamp,
+} from './helpers/timestampUtils';
 import KanbanPlugin from './main';
 import { frontmatterKey } from './parsers/common';
 import {
@@ -53,10 +58,21 @@ export function DragDropApp({ win, plugin }: { win: Window; plugin: KanbanPlugin
 
         try {
           const items: Item[] = data.content.map((title: string) => {
-            let item = stateManager.getNewItem(title, ' ');
+            let itemTitle = title;
             const isComplete = !!destinationParent?.data?.shouldMarkItemsComplete;
+            const isInProgress = !!destinationParent?.data?.shouldMarkItemsInProgress;
+
+            // Apply timestamps based on destination lane state
+            if (isInProgress) {
+              itemTitle = upsertTimestamp(itemTitle, TimestampType.START);
+              return stateManager.getNewItem(itemTitle, getInProgressCheckChar());
+            }
 
             if (isComplete) {
+              itemTitle = upsertTimestamp(itemTitle, TimestampType.END);
+              itemTitle = upsertTimestamp(itemTitle, TimestampType.COMPLETION);
+              
+              let item = stateManager.getNewItem(itemTitle, ' ');
               item = update(item, { data: { checkChar: { $set: getTaskStatusPreDone() } } });
               const updates = toggleTask(item, stateManager.file);
               if (updates) {
@@ -67,6 +83,7 @@ export function DragDropApp({ win, plugin }: { win: Window; plugin: KanbanPlugin
               }
             }
 
+            let item = stateManager.getNewItem(itemTitle, ' ');
             return update(item, {
               data: {
                 checked: {
