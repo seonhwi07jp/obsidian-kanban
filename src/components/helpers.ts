@@ -7,6 +7,7 @@ import { Path } from 'src/dnd/types';
 import { getEntityFromPath } from 'src/dnd/util/data';
 import {
   applyStateTransitionTimestamps,
+  determineState,
   getInProgressCheckChar,
   isInProgressCheckChar,
   TimestampType,
@@ -52,76 +53,51 @@ export function maybeCompleteForMove(
   const sourceParent = getEntityFromPath(sourceBoard, sourcePath.slice(0, -1));
   const destinationParent = getEntityFromPath(destinationBoard, destinationPath.slice(0, -1));
 
-  const oldShouldComplete = sourceParent?.data?.shouldMarkItemsComplete;
-  const newShouldComplete = destinationParent?.data?.shouldMarkItemsComplete;
-  const oldShouldInProgress = sourceParent?.data?.shouldMarkItemsInProgress;
-  const newShouldInProgress = destinationParent?.data?.shouldMarkItemsInProgress;
+  const oldShouldComplete = !!sourceParent?.data?.shouldMarkItemsComplete;
+  const newShouldComplete = !!destinationParent?.data?.shouldMarkItemsComplete;
+  const oldShouldInProgress = !!sourceParent?.data?.shouldMarkItemsInProgress;
+  const newShouldInProgress = !!destinationParent?.data?.shouldMarkItemsInProgress;
 
-  const isComplete = item.data.checked && item.data.checkChar === getTaskStatusDone();
-  const isInProgress = isInProgressCheckChar(item.data.checkChar);
+  // Determine source and destination states
+  const sourceState = determineState(oldShouldInProgress, oldShouldComplete, item.data.checkChar);
+  const destinationState = determineState(newShouldInProgress, newShouldComplete, ' ');
 
-  // Determine what state transitions are happening
-  const wasInProgressLane = !!oldShouldInProgress;
-  const wasDoneLane = !!oldShouldComplete;
-  const isMovingToInProgressLane = !!newShouldInProgress;
-  const isMovingToDoneLane = !!newShouldComplete;
-
-  // If neither lane has special properties, leave it alone
-  if (!oldShouldComplete && !newShouldComplete && !oldShouldInProgress && !newShouldInProgress) {
+  // If no state change and no lane properties, leave it alone
+  if (sourceState === destinationState && !oldShouldComplete && !newShouldComplete && !oldShouldInProgress && !newShouldInProgress) {
     return { next: item };
   }
 
-  // Handle timestamp updates based on state transition
-  let updatedTitleRaw = item.data.titleRaw;
-  
-  // Apply timestamp logic for state transitions
-  updatedTitleRaw = applyStateTransitionTimestamps(
-    updatedTitleRaw,
-    isMovingToInProgressLane,
-    isMovingToDoneLane,
-    wasInProgressLane || isInProgress,
-    wasDoneLane || isComplete
+  // Apply timestamp updates based on state transition
+  let updatedTitleRaw = applyStateTransitionTimestamps(
+    item.data.titleRaw,
+    destinationState,
+    sourceState
   );
 
-  // Handle In Progress state transition
-  if (isMovingToInProgressLane && !isInProgress) {
-    const newItem = destinationStateManager.getNewItem(updatedTitleRaw, getInProgressCheckChar());
-    return { next: newItem };
+  // Determine the new checkChar based on destination state
+  let newCheckChar = item.data.checkChar;
+  let newChecked = item.data.checked;
+
+  if (destinationState === 'inprogress') {
+    newCheckChar = getInProgressCheckChar();
+    newChecked = false;
+  } else if (destinationState === 'done') {
+    // Will be handled by toggleTask or fallback
+    newCheckChar = getTaskStatusDone();
+    newChecked = true;
+  } else if (destinationState === 'todo') {
+    newCheckChar = ' ';
+    newChecked = false;
   }
 
-  // Handle moving from In Progress to a normal lane (not Done)
-  if (wasInProgressLane && !isMovingToInProgressLane && !isMovingToDoneLane && isInProgress) {
-    const newItem = destinationStateManager.getNewItem(updatedTitleRaw, ' ');
-    return { next: newItem };
-  }
-
-  // Handle Done state transition (existing logic with timestamp integration)
-  // If it already matches the new lane's completion state, just update title if needed
-  if (newShouldComplete === isComplete && updatedTitleRaw === item.data.titleRaw) {
-    return { next: item };
-  }
-
-  // If only title changed (timestamps), update the item
-  if (updatedTitleRaw !== item.data.titleRaw && !newShouldComplete && !isMovingToInProgressLane) {
-    const newItem = destinationStateManager.getNewItem(updatedTitleRaw, item.data.checkChar);
-    return { next: newItem };
-  }
-
-  // Handle task completion with tasks plugin
-  if (newShouldComplete) {
-    let itemToToggle = item;
-    
-    // Update title with timestamps first
-    if (updatedTitleRaw !== item.data.titleRaw) {
-      itemToToggle = update(item, {
-        data: {
-          titleRaw: { $set: updatedTitleRaw },
-          checkChar: { $set: getTaskStatusPreDone() },
-        },
-      });
-    } else {
-      itemToToggle = update(item, { data: { checkChar: { $set: getTaskStatusPreDone() } } });
-    }
+  // If moving to Done, use the tasks plugin if available
+  if (destinationState === 'done' && sourceState !== 'done') {
+    let itemToToggle = update(item, {
+      data: {
+        titleRaw: { $set: updatedTitleRaw },
+        checkChar: { $set: getTaskStatusPreDone() },
+      },
+    });
 
     const updates = toggleTask(itemToToggle, destinationStateManager.file);
 
@@ -131,19 +107,9 @@ export function maybeCompleteForMove(
       let replacement: Item;
 
       itemStrings.forEach((str, i) => {
-        // Apply timestamps to the toggled task string as well
-        let finalStr = str;
-        if (i === thisIndex && isMovingToDoneLane) {
-          finalStr = applyStateTransitionTimestamps(
-            str,
-            false,
-            true,
-            wasInProgressLane || isInProgress,
-            false
-          );
-        }
-        
         if (i === thisIndex) {
+          // Apply timestamps to the toggled task string
+          const finalStr = applyStateTransitionTimestamps(str, 'done', sourceState);
           next = destinationStateManager.getNewItem(finalStr, checkChars[i]);
         } else {
           replacement = destinationStateManager.getNewItem(str, checkChars[i]);
@@ -154,20 +120,10 @@ export function maybeCompleteForMove(
     }
   }
 
-  // It's different, update it (fallback case)
-  return {
-    next: update(item, {
-      data: {
-        titleRaw: { $set: updatedTitleRaw },
-        checked: {
-          $set: !!newShouldComplete,
-        },
-        checkChar: {
-          $set: newShouldComplete ? getTaskStatusDone() : newShouldInProgress ? getInProgressCheckChar() : ' ',
-        },
-      },
-    }),
-  };
+  // Create new item with updated title and check state
+  const newItem = destinationStateManager.getNewItem(updatedTitleRaw, newCheckChar);
+  
+  return { next: newItem };
 }
 
 export function useIMEInputProps() {

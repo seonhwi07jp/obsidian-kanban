@@ -207,48 +207,77 @@ function findTimestampPositions(titleRaw: string): { completion: number; start: 
 /**
  * Apply timestamps based on the card's transition to a new state.
  * 
+ * State Transitions:
+ * - TODO → InProgress: Add ▶️ (start time)
+ * - InProgress → Done: Add ⏹️ (end time), Add ✅ (completion date)
+ * - Done → InProgress: Remove ⏹️, Remove ✅, Update ▶️ (new start time)
+ * - Done → TODO: Remove all timestamps (▶️, ⏹️, ✅)
+ * - InProgress → TODO: Remove ▶️
+ * 
  * @param titleRaw - The raw title string of the task
- * @param isMovingToInProgress - Whether the card is moving to an in-progress lane
- * @param isMovingToDone - Whether the card is moving to a done lane
- * @param wasInProgress - Whether the card was previously in an in-progress lane
- * @param wasDone - Whether the card was previously in a done lane
+ * @param destinationState - 'todo' | 'inprogress' | 'done'
+ * @param sourceState - 'todo' | 'inprogress' | 'done'
  * @returns The updated title string
  */
 export function applyStateTransitionTimestamps(
   titleRaw: string,
-  isMovingToInProgress: boolean,
-  isMovingToDone: boolean,
-  wasInProgress: boolean,
-  wasDone: boolean
+  destinationState: 'todo' | 'inprogress' | 'done',
+  sourceState: 'todo' | 'inprogress' | 'done'
 ): string {
   let result = titleRaw;
   
-  // Moving to In Progress (checkChar = "/")
-  if (isMovingToInProgress && !wasInProgress) {
+  // No state change
+  if (destinationState === sourceState) {
+    return result;
+  }
+  
+  // Moving TO InProgress
+  if (destinationState === 'inprogress') {
     // Add/update start time
     result = upsertTimestamp(result, TimestampType.START);
     
-    // If coming from Done, remove completion timestamps
-    if (wasDone) {
+    // If coming from Done, remove Done timestamps
+    if (sourceState === 'done') {
       result = removeTimestamp(result, TimestampType.END);
       result = removeTimestamp(result, TimestampType.COMPLETION);
     }
   }
   
-  // Moving to Done (checkChar = "x")
-  if (isMovingToDone && !wasDone) {
+  // Moving TO Done
+  else if (destinationState === 'done') {
     // Add/update end time and completion date
     result = upsertTimestamp(result, TimestampType.END);
     result = upsertTimestamp(result, TimestampType.COMPLETION);
   }
   
-  // Re-entering In Progress from Done (resetting)
-  if (isMovingToInProgress && wasDone) {
-    // Update start time (already handled above)
-    // End time and completion date already removed above
+  // Moving TO Todo (from any state)
+  else if (destinationState === 'todo') {
+    // Remove all timestamps
+    result = removeTimestamp(result, TimestampType.START);
+    result = removeTimestamp(result, TimestampType.END);
+    result = removeTimestamp(result, TimestampType.COMPLETION);
   }
   
   return result;
+}
+
+/**
+ * Determine the state based on lane properties and check character.
+ */
+export function determineState(
+  shouldMarkItemsInProgress: boolean | undefined,
+  shouldMarkItemsComplete: boolean | undefined,
+  checkChar: string
+): 'todo' | 'inprogress' | 'done' {
+  // Lane properties take precedence
+  if (shouldMarkItemsComplete) return 'done';
+  if (shouldMarkItemsInProgress) return 'inprogress';
+  
+  // Fall back to check character
+  if (checkChar === 'x' || checkChar === 'X') return 'done';
+  if (checkChar === '/') return 'inprogress';
+  
+  return 'todo';
 }
 
 /**
