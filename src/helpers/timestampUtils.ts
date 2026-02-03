@@ -11,17 +11,23 @@ import { moment } from 'obsidian';
  * Order: content -> created date -> completion date (✅) -> start time (▶️) -> end time (⏹️)
  */
 
-// Regex patterns for timestamp matching
-const START_TIME_PATTERN = /▶️\s*\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}/g;
-const END_TIME_PATTERN = /⏹️\s*\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}/g;
-const COMPLETION_DATE_PATTERN = /✅\s*\d{4}-\d{2}-\d{2}/g;
+// Pattern strings for timestamp matching (without /g flag - we create fresh RegExp each time)
+const START_TIME_PATTERN_STR = '▶️\\s*\\d{4}-\\d{2}-\\d{2}\\s+\\d{2}:\\d{2}';
+const END_TIME_PATTERN_STR = '⏹️\\s*\\d{4}-\\d{2}-\\d{2}\\s+\\d{2}:\\d{2}';
+const COMPLETION_DATE_PATTERN_STR = '✅\\s*\\d{4}-\\d{2}-\\d{2}';
 
-// All timestamp patterns for finding the insertion point
-const ALL_TIMESTAMP_PATTERNS = [
-  START_TIME_PATTERN,
-  END_TIME_PATTERN,
-  COMPLETION_DATE_PATTERN,
-];
+// Factory functions to create fresh RegExp objects each time
+function createStartTimePattern(): RegExp {
+  return new RegExp(START_TIME_PATTERN_STR, 'g');
+}
+
+function createEndTimePattern(): RegExp {
+  return new RegExp(END_TIME_PATTERN_STR, 'g');
+}
+
+function createCompletionDatePattern(): RegExp {
+  return new RegExp(COMPLETION_DATE_PATTERN_STR, 'g');
+}
 
 export enum TimestampType {
   START = 'start',      // ▶️ - In Progress
@@ -31,24 +37,24 @@ export enum TimestampType {
 
 interface TimestampConfig {
   emoji: string;
-  pattern: RegExp;
+  createPattern: () => RegExp;
   formatFn: () => string;
 }
 
 const TIMESTAMP_CONFIGS: Record<TimestampType, TimestampConfig> = {
   [TimestampType.START]: {
     emoji: '▶️',
-    pattern: START_TIME_PATTERN,
+    createPattern: createStartTimePattern,
     formatFn: () => moment().format('YYYY-MM-DD HH:mm'),
   },
   [TimestampType.END]: {
     emoji: '⏹️',
-    pattern: END_TIME_PATTERN,
+    createPattern: createEndTimePattern,
     formatFn: () => moment().format('YYYY-MM-DD HH:mm'),
   },
   [TimestampType.COMPLETION]: {
     emoji: '✅',
-    pattern: COMPLETION_DATE_PATTERN,
+    createPattern: createCompletionDatePattern,
     formatFn: () => moment().format('YYYY-MM-DD'),
   },
 };
@@ -78,16 +84,12 @@ function trimStart(str: string): string {
 export function upsertTimestamp(titleRaw: string, type: TimestampType): string {
   const config = TIMESTAMP_CONFIGS[type];
   const newTimestamp = `${config.emoji} ${config.formatFn()}`;
-  
-  // Reset the pattern's lastIndex for fresh matching
-  config.pattern.lastIndex = 0;
+  const pattern = config.createPattern();
   
   // Check if the timestamp already exists
-  if (config.pattern.test(titleRaw)) {
-    // Reset lastIndex after test
-    config.pattern.lastIndex = 0;
-    // Replace existing timestamp with new one
-    return titleRaw.replace(config.pattern, newTimestamp);
+  if (pattern.test(titleRaw)) {
+    // Replace existing timestamp with new one (create fresh pattern for replace)
+    return titleRaw.replace(config.createPattern(), newTimestamp);
   }
   
   // Timestamp doesn't exist, need to append at the correct position
@@ -104,10 +106,10 @@ export function upsertTimestamp(titleRaw: string, type: TimestampType): string {
  */
 export function removeTimestamp(titleRaw: string, type: TimestampType): string {
   const config = TIMESTAMP_CONFIGS[type];
-  config.pattern.lastIndex = 0;
+  const pattern = config.createPattern();
   
   // Remove the timestamp and any trailing/leading whitespace cleanup
-  let result = titleRaw.replace(config.pattern, '');
+  let result = titleRaw.replace(pattern, '');
   
   // Clean up multiple spaces
   result = result.replace(/\s{2,}/g, ' ').trim();
@@ -124,8 +126,8 @@ export function removeTimestamp(titleRaw: string, type: TimestampType): string {
  */
 export function hasTimestamp(titleRaw: string, type: TimestampType): boolean {
   const config = TIMESTAMP_CONFIGS[type];
-  config.pattern.lastIndex = 0;
-  return config.pattern.test(titleRaw);
+  const pattern = config.createPattern();
+  return pattern.test(titleRaw);
 }
 
 /**
@@ -181,22 +183,22 @@ function findTimestampPositions(titleRaw: string): { completion: number; start: 
   const result = { completion: -1, start: -1, end: -1 };
   
   // Find completion date position (✅)
-  COMPLETION_DATE_PATTERN.lastIndex = 0;
-  const completionMatch = COMPLETION_DATE_PATTERN.exec(titleRaw);
+  const completionPattern = createCompletionDatePattern();
+  const completionMatch = completionPattern.exec(titleRaw);
   if (completionMatch) {
     result.completion = completionMatch.index;
   }
   
   // Find start time position (▶️)
-  START_TIME_PATTERN.lastIndex = 0;
-  const startMatch = START_TIME_PATTERN.exec(titleRaw);
+  const startPattern = createStartTimePattern();
+  const startMatch = startPattern.exec(titleRaw);
   if (startMatch) {
     result.start = startMatch.index;
   }
   
   // Find end time position (⏹️)
-  END_TIME_PATTERN.lastIndex = 0;
-  const endMatch = END_TIME_PATTERN.exec(titleRaw);
+  const endPattern = createEndTimePattern();
+  const endMatch = endPattern.exec(titleRaw);
   if (endMatch) {
     result.end = endMatch.index;
   }

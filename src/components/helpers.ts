@@ -9,9 +9,6 @@ import {
   applyStateTransitionTimestamps,
   determineState,
   getInProgressCheckChar,
-  isInProgressCheckChar,
-  TimestampType,
-  upsertTimestamp,
 } from 'src/helpers/timestampUtils';
 import {
   InlineField,
@@ -58,12 +55,22 @@ export function maybeCompleteForMove(
   const oldShouldInProgress = !!sourceParent?.data?.shouldMarkItemsInProgress;
   const newShouldInProgress = !!destinationParent?.data?.shouldMarkItemsInProgress;
 
-  // Determine source and destination states
+  // Determine source state based on lane properties OR item's current checkChar
   const sourceState = determineState(oldShouldInProgress, oldShouldComplete, item.data.checkChar);
-  const destinationState = determineState(newShouldInProgress, newShouldComplete, ' ');
+  
+  // Determine destination state based on lane properties only
+  // If destination has no special properties, it's a normal TODO lane
+  let destinationState: 'todo' | 'inprogress' | 'done';
+  if (newShouldComplete) {
+    destinationState = 'done';
+  } else if (newShouldInProgress) {
+    destinationState = 'inprogress';
+  } else {
+    destinationState = 'todo';
+  }
 
-  // If no state change and no lane properties, leave it alone
-  if (sourceState === destinationState && !oldShouldComplete && !newShouldComplete && !oldShouldInProgress && !newShouldInProgress) {
+  // If source and destination states are the same, no change needed
+  if (sourceState === destinationState) {
     return { next: item };
   }
 
@@ -75,19 +82,15 @@ export function maybeCompleteForMove(
   );
 
   // Determine the new checkChar based on destination state
-  let newCheckChar = item.data.checkChar;
-  let newChecked = item.data.checked;
-
+  let newCheckChar: string;
+  
   if (destinationState === 'inprogress') {
     newCheckChar = getInProgressCheckChar();
-    newChecked = false;
   } else if (destinationState === 'done') {
-    // Will be handled by toggleTask or fallback
     newCheckChar = getTaskStatusDone();
-    newChecked = true;
-  } else if (destinationState === 'todo') {
+  } else {
+    // destinationState === 'todo'
     newCheckChar = ' ';
-    newChecked = false;
   }
 
   // If moving to Done, use the tasks plugin if available
