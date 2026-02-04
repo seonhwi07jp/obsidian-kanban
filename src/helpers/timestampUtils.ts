@@ -247,9 +247,9 @@ export function applyStateTransitionTimestamps(
   
   // Moving TO Done
   else if (destinationState === 'done') {
-    // Add/update end time and completion date
+    // Add/update end time only (completion date disabled - user already has time information)
     result = upsertTimestamp(result, TimestampType.END);
-    result = upsertTimestamp(result, TimestampType.COMPLETION);
+    // result = upsertTimestamp(result, TimestampType.COMPLETION);
   }
   
   // Moving TO Todo (from any state)
