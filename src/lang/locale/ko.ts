@@ -27,6 +27,7 @@ const lang: Partial<Lang> = {
   // parser.ts
   Complete: '완료됨',
   'In Progress': '진행 중',
+  'On Hold': '보류',
   Archive: '보관됨',
   'Invalid Kanban file: problems parsing frontmatter':
     '잘못된 칸반 파일: 프론트매터 파싱 문제가 발생했습니다.',
@@ -71,6 +72,9 @@ const lang: Partial<Lang> = {
   'Display card checkbox': '카드에 체크박스 표시',
   'When toggled, a checkbox will be displayed with each card':
     '활성화하면 각 카드에 체크박스가 표시됩니다.',
+  'Enable timestamp tracking': '타임스탬프 추적 활성화',
+  'When toggled, timestamps will be automatically added/removed when cards move between lanes (▶️ start, ⏸️ pause, ⏹️ end)':
+    '활성화하면 카드가 레인 간에 이동할 때 타임스탬프가 자동으로 추가/제거됩니다 (▶️ 시작, ⏸️ 일시정지, ⏹️ 종료)',
   'Reset to default': '기본값으로 초기화',
   'Date & Time': '날짜 및 시간',
   'Date trigger': '날짜 선택기 트리거',
@@ -188,6 +192,7 @@ const lang: Partial<Lang> = {
   'Enter list title...': '목록 제목 입력...',
   'Mark cards in this list as complete': '이 목록의 카드를 완료됨으로 표시',
   'Mark cards in this list as in progress': '이 목록의 카드를 진행 중으로 표시',
+  'Mark cards in this list as on hold': '이 목록의 카드를 보류로 표시',
   'Add list': '목록 추가',
   'Add a list': '목록 추가',
 

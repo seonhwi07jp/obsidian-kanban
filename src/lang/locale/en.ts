@@ -31,6 +31,7 @@ const en = {
   // parser.ts
   Complete: 'Complete',
   'In Progress': 'In Progress',
+  'On Hold': 'On Hold',
   Archive: 'Archive',
   'Invalid Kanban file: problems parsing frontmatter':
     'Invalid Kanban file: problems parsing frontmatter',
@@ -77,6 +78,9 @@ const en = {
   'Display card checkbox': 'Display card checkbox',
   'When toggled, a checkbox will be displayed with each card':
     'When toggled, a checkbox will be displayed with each card',
+  'Enable timestamp tracking': 'Enable timestamp tracking',
+  'When toggled, timestamps will be automatically added/removed when cards move between lanes (▶️ start, ⏸️ pause, ⏹️ end)':
+    'When toggled, timestamps will be automatically added/removed when cards move between lanes (▶️ start, ⏸️ pause, ⏹️ end)',
   'Reset to default': 'Reset to default',
   'Date & Time': 'Date & Time',
   'Date trigger': 'Date trigger',
@@ -242,6 +246,7 @@ const en = {
   'Enter list title...': 'Enter list title...',
   'Mark cards in this list as complete': 'Mark cards in this list as complete',
   'Mark cards in this list as in progress': 'Mark cards in this list as in progress',
+  'Mark cards in this list as on hold': 'Mark cards in this list as on hold',
   'Add list': 'Add list',
   'Add a list': 'Add a list',
 

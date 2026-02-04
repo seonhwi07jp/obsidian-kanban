@@ -13,12 +13,17 @@ import { moment } from 'obsidian';
 
 // Pattern strings for timestamp matching (without /g flag - we create fresh RegExp each time)
 const START_TIME_PATTERN_STR = '▶️\\s*\\d{4}-\\d{2}-\\d{2}\\s+\\d{2}:\\d{2}';
+const PAUSE_TIME_PATTERN_STR = '⏸️\\s*\\d{4}-\\d{2}-\\d{2}\\s+\\d{2}:\\d{2}';
 const END_TIME_PATTERN_STR = '⏹️\\s*\\d{4}-\\d{2}-\\d{2}\\s+\\d{2}:\\d{2}';
 const COMPLETION_DATE_PATTERN_STR = '✅\\s*\\d{4}-\\d{2}-\\d{2}';
 
 // Factory functions to create fresh RegExp objects each time
 function createStartTimePattern(): RegExp {
   return new RegExp(START_TIME_PATTERN_STR, 'g');
+}
+
+function createPauseTimePattern(): RegExp {
+  return new RegExp(PAUSE_TIME_PATTERN_STR, 'g');
 }
 
 function createEndTimePattern(): RegExp {
@@ -31,6 +36,7 @@ function createCompletionDatePattern(): RegExp {
 
 export enum TimestampType {
   START = 'start',      // ▶️ - In Progress
+  PAUSE = 'pause',      // ⏸️ - On Hold
   END = 'end',          // ⏹️ - Done time
   COMPLETION = 'completion', // ✅ - Done date
 }
@@ -45,6 +51,11 @@ const TIMESTAMP_CONFIGS: Record<TimestampType, TimestampConfig> = {
   [TimestampType.START]: {
     emoji: '▶️',
     createPattern: createStartTimePattern,
+    formatFn: () => moment().format('YYYY-MM-DD HH:mm'),
+  },
+  [TimestampType.PAUSE]: {
+    emoji: '⏸️',
+    createPattern: createPauseTimePattern,
     formatFn: () => moment().format('YYYY-MM-DD HH:mm'),
   },
   [TimestampType.END]: {
@@ -132,7 +143,7 @@ export function hasTimestamp(titleRaw: string, type: TimestampType): boolean {
 
 /**
  * Append a timestamp at the correct position based on the ordering rules.
- * Order: content -> ✅ (completion) -> ▶️ (start) -> ⏹️ (end)
+ * Order: content -> ✅ (completion) -> ▶️ (start) -> ⏸️ (pause) -> ⏹️ (end)
  */
 function appendTimestampInOrder(titleRaw: string, type: TimestampType, newTimestamp: string): string {
   // Find positions of existing timestamps
@@ -142,20 +153,30 @@ function appendTimestampInOrder(titleRaw: string, type: TimestampType, newTimest
   
   switch (type) {
     case TimestampType.COMPLETION:
-      // ✅ should be before ▶️ and ⏹️
+      // ✅ should be before ▶️, ⏸️, and ⏹️
       if (positions.start !== -1) {
         insertPosition = positions.start;
+      } else if (positions.pause !== -1) {
+        insertPosition = positions.pause;
       } else if (positions.end !== -1) {
         insertPosition = positions.end;
       }
       break;
       
     case TimestampType.START:
-      // ▶️ should be after ✅ but before ⏹️
+      // ▶️ should be after ✅ but before ⏸️ and ⏹️
+      if (positions.pause !== -1) {
+        insertPosition = positions.pause;
+      } else if (positions.end !== -1) {
+        insertPosition = positions.end;
+      }
+      break;
+      
+    case TimestampType.PAUSE:
+      // ⏸️ should be after ▶️ but before ⏹️
       if (positions.end !== -1) {
         insertPosition = positions.end;
       }
-      // If completion exists, we go after it (which means end of string or before end)
       break;
       
     case TimestampType.END:
@@ -179,8 +200,8 @@ function appendTimestampInOrder(titleRaw: string, type: TimestampType, newTimest
 /**
  * Find the starting positions of each timestamp type in the string.
  */
-function findTimestampPositions(titleRaw: string): { completion: number; start: number; end: number } {
-  const result = { completion: -1, start: -1, end: -1 };
+function findTimestampPositions(titleRaw: string): { completion: number; start: number; pause: number; end: number } {
+  const result = { completion: -1, start: -1, pause: -1, end: -1 };
   
   // Find completion date position (✅)
   const completionPattern = createCompletionDatePattern();
@@ -194,6 +215,13 @@ function findTimestampPositions(titleRaw: string): { completion: number; start: 
   const startMatch = startPattern.exec(titleRaw);
   if (startMatch) {
     result.start = startMatch.index;
+  }
+  
+  // Find pause time position (⏸️)
+  const pausePattern = createPauseTimePattern();
+  const pauseMatch = pausePattern.exec(titleRaw);
+  if (pauseMatch) {
+    result.pause = pauseMatch.index;
   }
   
   // Find end time position (⏹️)
@@ -213,18 +241,23 @@ function findTimestampPositions(titleRaw: string): { completion: number; start: 
  * - TODO → InProgress: Add ▶️ (start time)
  * - InProgress → Done: Add ⏹️ (end time), Add ✅ (completion date)
  * - Done → InProgress: Remove ⏹️, Remove ✅, Update ▶️ (new start time)
- * - Done → TODO: Remove all timestamps (▶️, ⏹️, ✅)
+ * - Done → TODO: Remove all timestamps (▶️, ⏸️, ⏹️, ✅)
  * - InProgress → TODO: Remove ▶️
+ * - InProgress → OnHold: Add ⏸️ (pause time) ONLY if ▶️ exists (conditional guard)
+ * - OnHold → InProgress: Remove ⏸️, Add new ▶️ (resume session)
+ * - TODO → OnHold: No timestamp changes (just move)
+ * - OnHold → TODO: Remove all timestamps
+ * - OnHold → Done: Add ⏹️ (end time)
  * 
  * @param titleRaw - The raw title string of the task
- * @param destinationState - 'todo' | 'inprogress' | 'done'
- * @param sourceState - 'todo' | 'inprogress' | 'done'
+ * @param destinationState - 'todo' | 'inprogress' | 'done' | 'onhold'
+ * @param sourceState - 'todo' | 'inprogress' | 'done' | 'onhold'
  * @returns The updated title string
  */
 export function applyStateTransitionTimestamps(
   titleRaw: string,
-  destinationState: 'todo' | 'inprogress' | 'done',
-  sourceState: 'todo' | 'inprogress' | 'done'
+  destinationState: 'todo' | 'inprogress' | 'done' | 'onhold',
+  sourceState: 'todo' | 'inprogress' | 'done' | 'onhold'
 ): string {
   let result = titleRaw;
   
@@ -235,20 +268,42 @@ export function applyStateTransitionTimestamps(
   
   // Moving TO InProgress
   if (destinationState === 'inprogress') {
-    // Only add start time if coming from TODO (not from Done - preserve original start time)
+    // From TODO: add new start time
     if (sourceState === 'todo') {
       result = upsertTimestamp(result, TimestampType.START);
     }
     
-    // If coming from Done, remove Done timestamps but keep the original start time
+    // From OnHold: remove pause time, add new start time (resume session)
+    if (sourceState === 'onhold') {
+      result = removeTimestamp(result, TimestampType.PAUSE);
+      result = upsertTimestamp(result, TimestampType.START);
+    }
+    
+    // From Done: remove Done timestamps, add new start time
     if (sourceState === 'done') {
       result = removeTimestamp(result, TimestampType.END);
       result = removeTimestamp(result, TimestampType.COMPLETION);
+      result = upsertTimestamp(result, TimestampType.START);
     }
+  }
+  
+  // Moving TO OnHold
+  else if (destinationState === 'onhold') {
+    // From InProgress: add pause time ONLY if start time exists (conditional guard)
+    if (sourceState === 'inprogress') {
+      if (hasTimestamp(result, TimestampType.START)) {
+        result = upsertTimestamp(result, TimestampType.PAUSE);
+      }
+      // If no start time exists, do nothing (just move without timestamp)
+    }
+    // From TODO: no timestamp changes (just move)
+    // From Done: no specific handling, just move
   }
   
   // Moving TO Done
   else if (destinationState === 'done') {
+    // Remove pause time if exists
+    result = removeTimestamp(result, TimestampType.PAUSE);
     // Add/update end time only (completion date disabled - user already has time information)
     result = upsertTimestamp(result, TimestampType.END);
     // result = upsertTimestamp(result, TimestampType.COMPLETION);
@@ -258,6 +313,7 @@ export function applyStateTransitionTimestamps(
   else if (destinationState === 'todo') {
     // Remove all timestamps
     result = removeTimestamp(result, TimestampType.START);
+    result = removeTimestamp(result, TimestampType.PAUSE);
     result = removeTimestamp(result, TimestampType.END);
     result = removeTimestamp(result, TimestampType.COMPLETION);
   }
@@ -271,11 +327,13 @@ export function applyStateTransitionTimestamps(
 export function determineState(
   shouldMarkItemsInProgress: boolean | undefined,
   shouldMarkItemsComplete: boolean | undefined,
+  shouldMarkItemsOnHold: boolean | undefined,
   checkChar: string
-): 'todo' | 'inprogress' | 'done' {
+): 'todo' | 'inprogress' | 'done' | 'onhold' {
   // Lane properties take precedence
   if (shouldMarkItemsComplete) return 'done';
   if (shouldMarkItemsInProgress) return 'inprogress';
+  if (shouldMarkItemsOnHold) return 'onhold';
   
   // Fall back to check character
   if (checkChar === 'x' || checkChar === 'X') return 'done';

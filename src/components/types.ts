@@ -16,6 +16,7 @@ export enum LaneSort {
 export interface LaneData {
   shouldMarkItemsComplete?: boolean;
   shouldMarkItemsInProgress?: boolean;
+  shouldMarkItemsOnHold?: boolean;
   title: string;
   maxItems?: number;
   dom?: HTMLDivElement;

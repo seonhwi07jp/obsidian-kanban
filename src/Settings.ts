@@ -61,6 +61,7 @@ export interface KanbanSettings {
   'date-picker-week-start'?: number;
   'date-time-display-format'?: string;
   'date-trigger'?: string;
+  'enable-timestamp-tracking'?: boolean;
   'full-list-lane-width'?: boolean;
   'hide-card-count'?: boolean;
   'inline-metadata-position'?: 'body' | 'footer' | 'metadata-table';
@@ -109,6 +110,7 @@ export const settingKeyLookup: Set<keyof KanbanSettings> = new Set([
   'date-picker-week-start',
   'date-time-display-format',
   'date-trigger',
+  'enable-timestamp-tracking',
   'full-list-lane-width',
   'hide-card-count',
   'inline-metadata-position',
@@ -242,6 +244,49 @@ export class SettingsManager {
 
                 this.applySettingsUpdate({
                   $unset: ['show-checkboxes'],
+                });
+              });
+          });
+      });
+
+    new Setting(contentEl)
+      .setName(t('Enable timestamp tracking'))
+      .setDesc(t('When toggled, timestamps will be automatically added/removed when cards move between lanes (▶️ start, ⏸️ pause, ⏹️ end)'))
+      .then((setting) => {
+        let toggleComponent: ToggleComponent;
+
+        setting
+          .addToggle((toggle) => {
+            toggleComponent = toggle;
+
+            const [value, globalValue] = this.getSetting('enable-timestamp-tracking', local);
+
+            if (value !== undefined) {
+              toggle.setValue(value as boolean);
+            } else if (globalValue !== undefined) {
+              toggle.setValue(globalValue as boolean);
+            } else {
+              // Default to true
+              toggle.setValue(true);
+            }
+
+            toggle.onChange((newValue) => {
+              this.applySettingsUpdate({
+                'enable-timestamp-tracking': {
+                  $set: newValue,
+                },
+              });
+            });
+          })
+          .addExtraButton((b) => {
+            b.setIcon('lucide-rotate-ccw')
+              .setTooltip(t('Reset to default'))
+              .onClick(() => {
+                const [, globalValue] = this.getSetting('enable-timestamp-tracking', local);
+                toggleComponent.setValue(globalValue !== undefined ? !!globalValue : true);
+
+                this.applySettingsUpdate({
+                  $unset: ['enable-timestamp-tracking'],
                 });
               });
           });

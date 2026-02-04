@@ -56,21 +56,34 @@ export function DragDropApp({ win, plugin }: { win: Window; plugin: KanbanPlugin
         const dropPath = dropEntity.getPath();
         const destinationParent = getEntityFromPath(stateManager.state, dropPath.slice(0, -1));
 
+        // Check if timestamp tracking is enabled (defaults to true if not set)
+        const isTimestampTrackingEnabled = stateManager.getSetting('enable-timestamp-tracking') !== false;
+
         try {
           const items: Item[] = data.content.map((title: string) => {
             let itemTitle = title;
             const isComplete = !!destinationParent?.data?.shouldMarkItemsComplete;
             const isInProgress = !!destinationParent?.data?.shouldMarkItemsInProgress;
+            const isOnHold = !!destinationParent?.data?.shouldMarkItemsOnHold;
 
-            // Apply timestamps based on destination lane state
+            // Apply timestamps based on destination lane state (only if enabled)
             if (isInProgress) {
-              itemTitle = upsertTimestamp(itemTitle, TimestampType.START);
+              if (isTimestampTrackingEnabled) {
+                itemTitle = upsertTimestamp(itemTitle, TimestampType.START);
+              }
+              return stateManager.getNewItem(itemTitle, getInProgressCheckChar());
+            }
+
+            if (isOnHold) {
+              // OnHold from external drop: no timestamp added (no start time exists)
               return stateManager.getNewItem(itemTitle, getInProgressCheckChar());
             }
 
             if (isComplete) {
-              itemTitle = upsertTimestamp(itemTitle, TimestampType.END);
-              itemTitle = upsertTimestamp(itemTitle, TimestampType.COMPLETION);
+              if (isTimestampTrackingEnabled) {
+                itemTitle = upsertTimestamp(itemTitle, TimestampType.END);
+                itemTitle = upsertTimestamp(itemTitle, TimestampType.COMPLETION);
+              }
               
               let item = stateManager.getNewItem(itemTitle, ' ');
               item = update(item, { data: { checkChar: { $set: getTaskStatusPreDone() } } });

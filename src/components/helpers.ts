@@ -54,17 +54,24 @@ export function maybeCompleteForMove(
   const newShouldComplete = !!destinationParent?.data?.shouldMarkItemsComplete;
   const oldShouldInProgress = !!sourceParent?.data?.shouldMarkItemsInProgress;
   const newShouldInProgress = !!destinationParent?.data?.shouldMarkItemsInProgress;
+  const oldShouldOnHold = !!sourceParent?.data?.shouldMarkItemsOnHold;
+  const newShouldOnHold = !!destinationParent?.data?.shouldMarkItemsOnHold;
+
+  // Check if timestamp tracking is enabled (defaults to true if not set)
+  const isTimestampTrackingEnabled = destinationStateManager.getSetting('enable-timestamp-tracking') !== false;
 
   // Determine source state based on lane properties OR item's current checkChar
-  const sourceState = determineState(oldShouldInProgress, oldShouldComplete, item.data.checkChar);
+  const sourceState = determineState(oldShouldInProgress, oldShouldComplete, oldShouldOnHold, item.data.checkChar);
   
   // Determine destination state based on lane properties only
   // If destination has no special properties, it's a normal TODO lane
-  let destinationState: 'todo' | 'inprogress' | 'done';
+  let destinationState: 'todo' | 'inprogress' | 'done' | 'onhold';
   if (newShouldComplete) {
     destinationState = 'done';
   } else if (newShouldInProgress) {
     destinationState = 'inprogress';
+  } else if (newShouldOnHold) {
+    destinationState = 'onhold';
   } else {
     destinationState = 'todo';
   }
@@ -74,17 +81,18 @@ export function maybeCompleteForMove(
     return { next: item };
   }
 
-  // Apply timestamp updates based on state transition
-  let updatedTitleRaw = applyStateTransitionTimestamps(
-    item.data.titleRaw,
-    destinationState,
-    sourceState
-  );
+  // Apply timestamp updates based on state transition (only if enabled)
+  let updatedTitleRaw = isTimestampTrackingEnabled
+    ? applyStateTransitionTimestamps(item.data.titleRaw, destinationState, sourceState)
+    : item.data.titleRaw;
 
   // Determine the new checkChar based on destination state
   let newCheckChar: string;
   
   if (destinationState === 'inprogress') {
+    newCheckChar = getInProgressCheckChar();
+  } else if (destinationState === 'onhold') {
+    // OnHold uses the same checkChar as InProgress
     newCheckChar = getInProgressCheckChar();
   } else if (destinationState === 'done') {
     newCheckChar = getTaskStatusDone();
@@ -111,8 +119,10 @@ export function maybeCompleteForMove(
 
       itemStrings.forEach((str, i) => {
         if (i === thisIndex) {
-          // Apply timestamps to the toggled task string
-          const finalStr = applyStateTransitionTimestamps(str, 'done', sourceState);
+          // Apply timestamps to the toggled task string (only if enabled)
+          const finalStr = isTimestampTrackingEnabled
+            ? applyStateTransitionTimestamps(str, 'done', sourceState)
+            : str;
           next = destinationStateManager.getNewItem(finalStr, checkChars[i]);
         } else {
           replacement = destinationStateManager.getNewItem(str, checkChars[i]);

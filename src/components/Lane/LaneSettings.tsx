@@ -29,13 +29,31 @@ export function LaneSettings({ lane, lanePath, editState }: LaneSettingsProps) {
               update(lane, {
                 data: {
                   $toggle: ['shouldMarkItemsInProgress'],
-                  // If enabling in-progress, disable complete (mutually exclusive)
-                  ...(lane.data.shouldMarkItemsInProgress ? {} : { shouldMarkItemsComplete: { $set: false } }),
+                  // If enabling in-progress, disable complete and on-hold (mutually exclusive)
+                  ...(lane.data.shouldMarkItemsInProgress ? {} : { shouldMarkItemsComplete: { $set: false }, shouldMarkItemsOnHold: { $set: false } }),
                 },
               })
             )
           }
           className={`checkbox-container ${lane.data.shouldMarkItemsInProgress ? 'is-enabled' : ''}`}
+        />
+      </div>
+      <div className={c('checkbox-wrapper')}>
+        <div className={c('checkbox-label')}>{t('Mark cards in this list as on hold')}</div>
+        <div
+          onClick={() =>
+            boardModifiers.updateLane(
+              lanePath,
+              update(lane, {
+                data: {
+                  $toggle: ['shouldMarkItemsOnHold'],
+                  // If enabling on-hold, disable complete and in-progress (mutually exclusive)
+                  ...(lane.data.shouldMarkItemsOnHold ? {} : { shouldMarkItemsComplete: { $set: false }, shouldMarkItemsInProgress: { $set: false } }),
+                },
+              })
+            )
+          }
+          className={`checkbox-container ${lane.data.shouldMarkItemsOnHold ? 'is-enabled' : ''}`}
         />
       </div>
       <div className={c('checkbox-wrapper')}>
@@ -47,8 +65,8 @@ export function LaneSettings({ lane, lanePath, editState }: LaneSettingsProps) {
               update(lane, {
                 data: {
                   $toggle: ['shouldMarkItemsComplete'],
-                  // If enabling complete, disable in-progress (mutually exclusive)
-                  ...(lane.data.shouldMarkItemsComplete ? {} : { shouldMarkItemsInProgress: { $set: false } }),
+                  // If enabling complete, disable in-progress and on-hold (mutually exclusive)
+                  ...(lane.data.shouldMarkItemsComplete ? {} : { shouldMarkItemsInProgress: { $set: false }, shouldMarkItemsOnHold: { $set: false } }),
                 },
               })
             )
