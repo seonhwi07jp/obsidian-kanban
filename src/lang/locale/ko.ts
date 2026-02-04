@@ -172,6 +172,7 @@ const lang: Partial<Lang> = {
   'Edit card': '카드 수정',
   'New note from card': '카드에서 새 노트 만들기',
   'Archive card': '카드 보관',
+  'Remove all timestamps': '모든 타임스탬프 제거',
   'Delete card': '카드 삭제',
   'Edit date': '날짜 수정',
   'Add date': '날짜 추가',

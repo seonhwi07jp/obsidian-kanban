@@ -109,6 +109,23 @@ export function upsertTimestamp(titleRaw: string, type: TimestampType): string {
 }
 
 /**
+ * Append a new timestamp to the end of the task title.
+ * Unlike upsertTimestamp, this always adds a new timestamp without replacing existing ones.
+ * Used for session tracking where multiple start/pause times need to be recorded.
+ * 
+ * @param titleRaw - The raw title string of the task
+ * @param type - The type of timestamp to append
+ * @returns The updated title string with the new timestamp appended
+ */
+export function appendTimestamp(titleRaw: string, type: TimestampType): string {
+  const config = TIMESTAMP_CONFIGS[type];
+  const newTimestamp = `${config.emoji} ${config.formatFn()}`;
+  
+  // Always append at the end
+  return `${trimEnd(titleRaw)} ${newTimestamp}`;
+}
+
+/**
  * Remove a specific timestamp from the task title.
  * 
  * @param titleRaw - The raw title string of the task
@@ -139,6 +156,40 @@ export function hasTimestamp(titleRaw: string, type: TimestampType): boolean {
   const config = TIMESTAMP_CONFIGS[type];
   const pattern = config.createPattern();
   return pattern.test(titleRaw);
+}
+
+/**
+ * Remove all timestamps from the task title.
+ * This removes all ▶️, ⏸️, ⏹️, and ✅ timestamps.
+ * 
+ * @param titleRaw - The raw title string of the task
+ * @returns The updated title string with all timestamps removed
+ */
+export function removeAllTimestamps(titleRaw: string): string {
+  let result = titleRaw;
+  
+  // Remove all timestamp types
+  result = removeTimestamp(result, TimestampType.START);
+  result = removeTimestamp(result, TimestampType.PAUSE);
+  result = removeTimestamp(result, TimestampType.END);
+  result = removeTimestamp(result, TimestampType.COMPLETION);
+  
+  // The removeTimestamp function uses global regex, but it only removes one match at a time
+  // We need to loop until all instances are removed
+  while (hasTimestamp(result, TimestampType.START)) {
+    result = removeTimestamp(result, TimestampType.START);
+  }
+  while (hasTimestamp(result, TimestampType.PAUSE)) {
+    result = removeTimestamp(result, TimestampType.PAUSE);
+  }
+  while (hasTimestamp(result, TimestampType.END)) {
+    result = removeTimestamp(result, TimestampType.END);
+  }
+  while (hasTimestamp(result, TimestampType.COMPLETION)) {
+    result = removeTimestamp(result, TimestampType.COMPLETION);
+  }
+  
+  return result;
 }
 
 /**
@@ -273,10 +324,9 @@ export function applyStateTransitionTimestamps(
       result = upsertTimestamp(result, TimestampType.START);
     }
     
-    // From OnHold: remove pause time, add new start time (resume session)
+    // From OnHold: keep pause time, append new start time (resume session - track multiple sessions)
     if (sourceState === 'onhold') {
-      result = removeTimestamp(result, TimestampType.PAUSE);
-      result = upsertTimestamp(result, TimestampType.START);
+      result = appendTimestamp(result, TimestampType.START);
     }
     
     // From Done: remove Done timestamps, add new start time
@@ -289,24 +339,25 @@ export function applyStateTransitionTimestamps(
   
   // Moving TO OnHold
   else if (destinationState === 'onhold') {
-    // From InProgress: add pause time ONLY if start time exists (conditional guard)
+    // From InProgress: append pause time ONLY if start time exists (conditional guard)
     if (sourceState === 'inprogress') {
       if (hasTimestamp(result, TimestampType.START)) {
-        result = upsertTimestamp(result, TimestampType.PAUSE);
+        result = appendTimestamp(result, TimestampType.PAUSE);
       }
       // If no start time exists, do nothing (just move without timestamp)
     }
+    // From Done: remove end time, keep session history
+    if (sourceState === 'done') {
+      result = removeTimestamp(result, TimestampType.END);
+      result = removeTimestamp(result, TimestampType.COMPLETION);
+    }
     // From TODO: no timestamp changes (just move)
-    // From Done: no specific handling, just move
   }
   
   // Moving TO Done
   else if (destinationState === 'done') {
-    // Remove pause time if exists
-    result = removeTimestamp(result, TimestampType.PAUSE);
-    // Add/update end time only (completion date disabled - user already has time information)
-    result = upsertTimestamp(result, TimestampType.END);
-    // result = upsertTimestamp(result, TimestampType.COMPLETION);
+    // Keep all session history (▶️, ⏸️), just append end time
+    result = appendTimestamp(result, TimestampType.END);
   }
   
   // Moving TO Todo (from any state)

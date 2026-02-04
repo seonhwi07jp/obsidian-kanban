@@ -798,6 +798,37 @@ button.kanban-plugin__new-item-button {
   padding-block: 6px;
 }
 
+.kanban-plugin__item-state-buttons {
+  display: flex;
+  gap: 4px;
+  padding-inline: 8px;
+  padding-block: 4px;
+  background-color: var(--background-primary-alt);
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.kanban-plugin__item-state-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  font-size: 12px;
+  border: none;
+  border-radius: var(--radius-s);
+  background-color: var(--background-secondary);
+  cursor: pointer;
+  transition: background-color 0.1s ease;
+  box-shadow: none;
+
+  &:hover {
+    background-color: var(--background-modifier-hover);
+  }
+
+  &:active {
+    background-color: var(--background-modifier-active-hover);
+  }
+}
+
 .kanban-plugin__item-metadata:not(:empty) {
   padding-block-start: 5px;
   font-size: 12px;

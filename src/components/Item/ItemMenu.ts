@@ -4,6 +4,7 @@ import { Dispatch, StateUpdater, useCallback } from 'preact/hooks';
 import { StateManager } from 'src/StateManager';
 import { Path } from 'src/dnd/types';
 import { moveEntity } from 'src/dnd/util/data';
+import { removeAllTimestamps } from 'src/helpers/timestampUtils';
 import { t } from 'src/lang/helpers';
 
 import { BoardModifiers } from '../../helpers/boardModifiers';
@@ -179,6 +180,14 @@ export function useItemMenu({
           i.setIcon('lucide-archive')
             .setTitle(t('Archive card'))
             .onClick(() => boardModifiers.archiveItem(path));
+        })
+        .addItem((i) => {
+          i.setIcon('lucide-timer-off')
+            .setTitle(t('Remove all timestamps'))
+            .onClick(() => {
+              const titleRaw = removeAllTimestamps(item.data.titleRaw);
+              boardModifiers.updateItem(path, stateManager.updateItemContent(item, titleRaw));
+            });
         })
         .addItem((i) => {
           i.setIcon('lucide-trash-2')

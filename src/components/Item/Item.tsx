@@ -22,6 +22,7 @@ import { ItemContent } from './ItemContent';
 import { useItemMenu } from './ItemMenu';
 import { ItemMenuButton } from './ItemMenuButton';
 import { ItemMetadata } from './MetadataTable';
+import { ItemStateButtons, LaneState } from './ItemStateButtons';
 import { getItemClassModifiers } from './helpers';
 
 export interface DraggableItemProps {
@@ -29,12 +30,16 @@ export interface DraggableItemProps {
   itemIndex: number;
   isStatic?: boolean;
   shouldMarkItemsComplete?: boolean;
+  shouldMarkItemsInProgress?: boolean;
+  shouldMarkItemsOnHold?: boolean;
 }
 
 export interface ItemInnerProps {
   item: Item;
   isStatic?: boolean;
   shouldMarkItemsComplete?: boolean;
+  shouldMarkItemsInProgress?: boolean;
+  shouldMarkItemsOnHold?: boolean;
   isMatch?: boolean;
   searchQuery?: string;
 }
@@ -42,6 +47,8 @@ export interface ItemInnerProps {
 const ItemInner = memo(function ItemInner({
   item,
   shouldMarkItemsComplete,
+  shouldMarkItemsInProgress,
+  shouldMarkItemsOnHold,
   isMatch,
   searchQuery,
   isStatic,
@@ -107,6 +114,14 @@ const ItemInner = memo(function ItemInner({
     return {};
   }, [editState]);
 
+  // Determine the lane state for the state buttons
+  const laneState: LaneState = useMemo(() => {
+    if (shouldMarkItemsComplete) return 'done';
+    if (shouldMarkItemsInProgress) return 'inprogress';
+    if (shouldMarkItemsOnHold) return 'onhold';
+    return 'todo';
+  }, [shouldMarkItemsComplete, shouldMarkItemsInProgress, shouldMarkItemsOnHold]);
+
   return (
     <div
       // eslint-disable-next-line react/no-unknown-property
@@ -133,6 +148,7 @@ const ItemInner = memo(function ItemInner({
         <ItemMenuButton editState={editState} setEditState={setEditState} showMenu={showItemMenu} />
       </div>
       <ItemMetadata searchQuery={isMatch ? searchQuery : undefined} item={item} />
+      <ItemStateButtons item={item} path={path} laneState={laneState} />
     </div>
   );
 });
@@ -185,9 +201,17 @@ interface ItemsProps {
   isStatic?: boolean;
   items: Item[];
   shouldMarkItemsComplete: boolean;
+  shouldMarkItemsInProgress?: boolean;
+  shouldMarkItemsOnHold?: boolean;
 }
 
-export const Items = memo(function Items({ isStatic, items, shouldMarkItemsComplete }: ItemsProps) {
+export const Items = memo(function Items({ 
+  isStatic, 
+  items, 
+  shouldMarkItemsComplete,
+  shouldMarkItemsInProgress,
+  shouldMarkItemsOnHold,
+}: ItemsProps) {
   const search = useContext(SearchContext);
   const { view } = useContext(KanbanContext);
   const boardView = view.useViewState(frontmatterKey);
@@ -201,6 +225,8 @@ export const Items = memo(function Items({ isStatic, items, shouldMarkItemsCompl
             item={item}
             itemIndex={i}
             shouldMarkItemsComplete={shouldMarkItemsComplete}
+            shouldMarkItemsInProgress={shouldMarkItemsInProgress}
+            shouldMarkItemsOnHold={shouldMarkItemsOnHold}
             isStatic={isStatic}
           />
         );

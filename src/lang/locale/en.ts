@@ -225,6 +225,7 @@ const en = {
   'Edit card': 'Edit card',
   'New note from card': 'New note from card',
   'Archive card': 'Archive card',
+  'Remove all timestamps': 'Remove all timestamps',
   'Delete card': 'Delete card',
   'Edit date': 'Edit date',
   'Add date': 'Add date',

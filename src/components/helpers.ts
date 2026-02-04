@@ -119,11 +119,9 @@ export function maybeCompleteForMove(
 
       itemStrings.forEach((str, i) => {
         if (i === thisIndex) {
-          // Apply timestamps to the toggled task string (only if enabled)
-          const finalStr = isTimestampTrackingEnabled
-            ? applyStateTransitionTimestamps(str, 'done', sourceState)
-            : str;
-          next = destinationStateManager.getNewItem(finalStr, checkChars[i]);
+          // Timestamps already applied to updatedTitleRaw, no need to apply again
+          // The str from toggleTask is based on updatedTitleRaw which already has timestamps
+          next = destinationStateManager.getNewItem(str, checkChars[i]);
         } else {
           replacement = destinationStateManager.getNewItem(str, checkChars[i]);
         }

@@ -65,6 +65,8 @@ function DraggableLaneRaw({
   const bindHandle = useDragHandle(measureRef, dragHandleRef);
 
   const shouldMarkItemsComplete = !!lane.data.shouldMarkItemsComplete;
+  const shouldMarkItemsInProgress = !!lane.data.shouldMarkItemsInProgress;
+  const shouldMarkItemsOnHold = !!lane.data.shouldMarkItemsOnHold;
   const isCompactPrepend = insertionMethod === 'prepend-compact';
   const shouldPrepend = isCompactPrepend || insertionMethod === 'prepend';
 
@@ -195,6 +197,8 @@ function DraggableLaneRaw({
                       items={lane.children}
                       isStatic={isStatic}
                       shouldMarkItemsComplete={shouldMarkItemsComplete}
+                      shouldMarkItemsInProgress={shouldMarkItemsInProgress}
+                      shouldMarkItemsOnHold={shouldMarkItemsOnHold}
                     />
                     <SortPlaceholder
                       accepts={laneAccepts}
