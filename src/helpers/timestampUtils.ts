@@ -235,10 +235,12 @@ export function applyStateTransitionTimestamps(
   
   // Moving TO InProgress
   if (destinationState === 'inprogress') {
-    // Add/update start time
-    result = upsertTimestamp(result, TimestampType.START);
+    // Only add start time if coming from TODO (not from Done - preserve original start time)
+    if (sourceState === 'todo') {
+      result = upsertTimestamp(result, TimestampType.START);
+    }
     
-    // If coming from Done, remove Done timestamps
+    // If coming from Done, remove Done timestamps but keep the original start time
     if (sourceState === 'done') {
       result = removeTimestamp(result, TimestampType.END);
       result = removeTimestamp(result, TimestampType.COMPLETION);
